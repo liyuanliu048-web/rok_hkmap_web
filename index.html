@@ -1,46 +1,97 @@
 <script>
 (() => {
-  // ===== 2x 徽标规格 =====
-  const BADGE_FONT_SIZE = 18;       // 文本字号
-  const BADGE_HEIGHT    = 28;       // 背景高度
-  const BADGE_PADDING_X = 10;       // 左右内边距
-  const BADGE_MARGIN    = 6;        // 圆点下方额外间距
+  // ====== 2x 徽标规格 ======
+  const BADGE_FONT_SIZE = 18;
+  const BADGE_HEIGHT    = 28;
+  const BADGE_PADDING_X = 10;
+  const BADGE_MARGIN    = 6;   // 距离黑点底部的额外间距
 
+  // ====== 状态 ======
   const store = new Map(); // id -> { label, mode, durationMs, remainingMs, endAt, badge:{g,rect,text}, anchor:{x,y}, r:number }
-  let currentId = null, ticker = null;
+  let currentId = null;
+  let ticker = null;
 
-  // === 把任意元素上的一个本地点 (x,y) 转换到根 <svg> 坐标 ===
-  function toRootXY(svg, element, x, y){
+  // ====== 右侧控件 ======
+  const els = {
+    container: document.getElementById('mapContainer'),
+    title:     document.getElementById('title'),
+    timeLeft:  document.getElementById('timeLeft'),
+    status:    document.getElementById('statusMeta'),
+    h:         document.getElementById('hours'),
+    m:         document.getElementById('mins'),
+    s:         document.getElementById('secs'),
+    start:     document.getElementById('startBtn'),
+    pause:     document.getElementById('pauseBtn'),
+    reset:     document.getElementById('resetBtn'),
+  };
+
+  // ====== 格式化 ======
+  const pad2 = n => String(n).padStart(2,'0');
+  const fmtHMS = (ms) => {
+    if (ms < 0) ms = 0;
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = t % 60;
+    return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+  };
+  const labelHM = (ms) => {
+    if (ms < 0) ms = 0;
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    return `${pad2(h)} ${pad2(m)}`;
+  };
+
+  // ====== 面板 ======
+  const updatePanel = (st) => {
+    const nowLeft =
+      st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0) :
+      st.mode === 'paused'  ? Math.max(st.remainingMs || 0, 0) :
+                              st.durationMs;
+    els.title.textContent = `${st.label} · 倒计时`;
+    els.timeLeft.textContent = fmtHMS(nowLeft);
+    els.status.textContent =
+      st.mode === 'running' ? `状态：进行中（完成≈ ${new Date(st.endAt).toLocaleString()}）` :
+      st.mode === 'paused'  ? '状态：已暂停' : '状态：未开始';
+    els.h.value = Math.floor(nowLeft / 3600000);
+    els.m.value = Math.floor(nowLeft % 3600000 / 60000);
+    els.s.value = Math.floor(nowLeft % 60000 / 1000);
+  };
+  const selectPoint = (id) => { currentId = id; updatePanel(store.get(id)); };
+
+  // ====== 坐标工具（稳） ======
+  // 把屏幕坐标 -> 根 SVG 坐标
+  function screenToSvg(svg, sx, sy){
     const pt = svg.createSVGPoint();
-    pt.x = x; pt.y = y;
-    const toScreen = element.getScreenCTM();
-    const toRoot   = svg.getScreenCTM().inverse();
-    return pt.matrixTransform(toScreen).matrixTransform(toRoot);
+    pt.x = sx; pt.y = sy;
+    const inv = svg.getScreenCTM() && svg.getScreenCTM().inverse ? svg.getScreenCTM().inverse() : null;
+    return inv ? pt.matrixTransform(inv) : { x: sx, y: sy };
   }
 
-  // === 寻找锚点：优先 circle/.anchor/[data-anchor]，否则退回组的 BBox 中心 ===
-  function findAnchor(svg, pointNode){
-    // 1) 优先 circle
-    let anchorEl =
-      pointNode.querySelector('.anchor,[data-anchor],circle,[cx][cy]') ||
-      (pointNode.tagName === 'circle' ? pointNode : null);
-
-    if (anchorEl && ('cx' in anchorEl && 'cy' in anchorEl)) {
-      const cx = +anchorEl.getAttribute('cx');
-      const cy = +anchorEl.getAttribute('cy');
-      const root = toRootXY(svg, anchorEl, cx, cy);
-      const r = +anchorEl.getAttribute('r') || 6;
+  // 取某点位的“黑点中心 + 半径”
+  function getAnchor(svg, pointNode){
+    // 1) 优先 circle / .anchor / [data-anchor]
+    let c = pointNode.querySelector('circle.anchor, .anchor, [data-anchor], circle[cx][cy]');
+    if (pointNode.tagName.toLowerCase() === 'circle') c = pointNode;
+    if (c && c.hasAttribute('cx') && c.hasAttribute('cy')){
+      const rc = c.getBoundingClientRect();        // 屏幕坐标
+      const cx = rc.left + rc.width/2;
+      const cy = rc.top  + rc.height/2;
+      const root = screenToSvg(svg, cx, cy);
+      const r = Number(c.getAttribute('r')) || Math.max(rc.width, rc.height)/2 || 6;
       return { x: root.x, y: root.y, r };
     }
 
-    // 2) 退回 BBox 中心
-    const bb  = pointNode.getBBox();
-    const loc = { x: bb.x + bb.width/2, y: bb.y + bb.height/2 };
-    const root = toRootXY(svg, pointNode, loc.x, loc.y);
-    return { x: root.x, y: root.y, r: 6 };
+    // 2) 退回整组几何中心（屏幕矩形）
+    const rect = pointNode.getBoundingClientRect();
+    const sx = rect.left + rect.width/2;
+    const sy = rect.top  + rect.height/2;
+    const root = screenToSvg(svg, sx, sy);
+    return { x: root.x, y: root.y, r: Math.max(6, Math.min(rect.width, rect.height)/2) };
   }
 
-  // === 创建徽标到根层（不吃事件），永远在根坐标系里画 ===
+  // ====== 徽标图层 & 元素 ======
   function ensureBadgeLayer(svg){
     let layer = svg.querySelector('#badge-layer');
     if (!layer){
@@ -51,22 +102,19 @@
     }
     return layer;
   }
-
   function createBadge(svg, id){
+    const st = store.get(id);
+    if (st.badge) return;
     const ns = 'http://www.w3.org/2000/svg';
     const layer = ensureBadgeLayer(svg);
-    const st = store.get(id);
-
     const g = document.createElementNS(ns,'g');
     const rect = document.createElementNS(ns,'rect');
     const text = document.createElementNS(ns,'text');
 
-    rect.setAttribute('rx','4'); rect.setAttribute('ry','4');
     rect.setAttribute('y','0');
     rect.setAttribute('height', String(BADGE_HEIGHT));
-    rect.setAttribute('fill','#fff');
-    rect.setAttribute('stroke','#000');
-    rect.setAttribute('stroke-width','1.5');
+    rect.setAttribute('rx','4'); rect.setAttribute('ry','4');
+    rect.setAttribute('fill','#fff'); rect.setAttribute('stroke','#000'); rect.setAttribute('stroke-width','1.5');
 
     text.setAttribute('text-anchor','middle');
     text.setAttribute('font-size', String(BADGE_FONT_SIZE));
@@ -75,60 +123,44 @@
 
     g.appendChild(rect); g.appendChild(text);
     layer.appendChild(g);
-
     st.badge = { g, rect, text };
-    positionBadge(id); // 初次定位 + 文本
   }
 
-  // === 计算当前应显示的 “HH MM” 文本 ===
-  function labelHM(ms){
-    if (ms < 0) ms = 0;
-    const t = Math.floor(ms/1000);
-    const h = Math.floor(t/3600);
-    const m = Math.floor((t%3600)/60);
-    return `${String(h).padStart(2,'0')} ${String(m).padStart(2,'0')}`;
-  }
-
-  // === 定位 + 自适应宽度（放在锚点正下方） ===
   function positionBadge(id){
     const st = store.get(id);
     if (!st?.badge || !st.anchor) return;
 
-    // 1) 计算应显示的毫秒数
+    // 文本
     let ms = 0;
     if (st.mode === 'running')      ms = Math.max(0, st.endAt - Date.now());
     else if (st.mode === 'paused')  ms = Math.max(0, st.remainingMs || 0);
-    else                            ms = 0;  // idle -> 00 00
-
+    else                            ms = 0;
     const label = labelHM(ms);
-    const { g, rect, text } = st.badge;
 
-    // 2) 先更新文本，测量宽度，再设矩形宽度
+    const { g, rect, text } = st.badge;
     text.textContent = label;
-    // 临时放到 0,0 确保可测量
-    g.setAttribute('transform', `translate(${st.anchor.x}, ${st.anchor.y})`);
     text.setAttribute('x','0');
     text.setAttribute('y', String(Math.round(BADGE_HEIGHT*0.72)));
 
-    // 需要可见才能 getBBox
-    const w = Math.ceil(text.getBBox().width) + BADGE_PADDING_X*2;
-    rect.setAttribute('x', String(-w/2));
-    rect.setAttribute('width', String(w));
+    // 为了测宽，先放到锚点（不偏移），保证可见
+    g.setAttribute('transform', `translate(${st.anchor.x}, ${st.anchor.y})`);
+    const width = Math.ceil(text.getBBox().width) + BADGE_PADDING_X * 2;
+    rect.setAttribute('x', String(-width/2));
+    rect.setAttribute('width', String(width));
 
-    // 3) 真正放到“圆点正下方”：锚点 y + r + margin
+    // 真正位置：黑点正下方 r + margin
     const offsetY = st.r + BADGE_MARGIN;
     g.setAttribute('transform', `translate(${st.anchor.x}, ${st.anchor.y + offsetY})`);
   }
 
-  // === 全局 tick：只更新 running 的点；当前选中顺带刷新面板 ===
+  // ====== 全局刷新 ======
   function startTicker(){
     if (ticker) return;
     ticker = setInterval(() => {
       let needPanel = false;
       const now = Date.now();
       for (const [id, st] of store){
-        if (st.mode !== 'running') { positionBadge(id); continue; }
-        if (st.endAt - now <= 0){
+        if (st.mode === 'running' && st.endAt - now <= 0){
           st.mode = 'idle';
           st.remainingMs = st.durationMs;
           st.endAt = null;
@@ -136,78 +168,112 @@
         positionBadge(id);
         if (id === currentId) needPanel = true;
       }
-      if (needPanel && currentId){
-        const st = store.get(currentId);
-        const left = st.mode==='running' ? Math.max(0, st.endAt - Date.now())
-                   : st.mode==='paused'  ? Math.max(0, st.remainingMs||0)
-                   : st.durationMs;
-        document.getElementById('timeLeft').textContent =
-          `${String(Math.floor(left/3600000)).padStart(2,'0')}:${String(Math.floor(left%3600000/60000)).padStart(2,'0')}:${String(Math.floor(left%60000/1000)).padStart(2,'0')}`;
-      }
+      if (needPanel && currentId) updatePanel(store.get(currentId));
     }, 500);
   }
 
-  // === 在加载 SVG 后：为每个 .point 建立锚点与徽标 ===
-  async function afterSvgLoaded(svgRoot){
-    const points = svgRoot.querySelectorAll('.point');
-    let auto = 0;
-    points.forEach(node => {
-      if (!node.getAttribute('data-id')) node.setAttribute('data-id', `p-${++auto}`);
-      const id = node.getAttribute('data-id');
-      const label = node.getAttribute('data-label') || id;
+  // ====== 右栏操作 ======
+  const inputMs = () => {
+    const hh = Math.max(0, Number(els.h.value)||0);
+    const mm = Math.max(0, Math.min(59, Number(els.m.value)||0));
+    const ss = Math.max(0, Math.min(59, Number(els.s.value)||0));
+    return (hh*3600 + mm*60 + ss) * 1000;
+  };
+  els.start.addEventListener('click', () => {
+    if (!currentId) return;
+    const st = store.get(currentId);
+    const ms = inputMs();
+    if (ms > 0){
+      st.durationMs = ms; st.mode='running'; st.endAt=Date.now()+ms; st.remainingMs=null;
+    } else if (st.mode === 'paused'){
+      st.mode='running'; st.endAt=Date.now()+Math.max(0, st.remainingMs||0); st.remainingMs=null;
+    } else {
+      st.mode='running'; st.endAt=Date.now()+st.durationMs;
+    }
+    updatePanel(st); positionBadge(currentId); startTicker();
+  });
+  els.pause.addEventListener('click', () => {
+    if (!currentId) return;
+    const st = store.get(currentId);
+    if (st.mode === 'running'){
+      st.remainingMs = Math.max(0, st.endAt - Date.now());
+      st.mode='paused'; st.endAt=null;
+      updatePanel(st); positionBadge(currentId);
+    }
+  });
+  els.reset.addEventListener('click', () => {
+    if (!currentId) return;
+    const st = store.get(currentId);
+    st.mode='idle'; st.remainingMs=st.durationMs; st.endAt=null;
+    updatePanel(st); positionBadge(currentId);
+  });
 
-      // 初始化状态
-      const durationMs = 8*3600*1000;
-      store.set(id, { label, mode:'idle', durationMs, remainingMs:durationMs, endAt:null,
-                      badge:null, anchor:null, r:6 });
-
-      // 计算“黑点”锚点（优先 circle）
-      const anch = findAnchor(svgRoot, node);
-      const st = store.get(id);
-      st.anchor = { x: anch.x, y: anch.y };
-      st.r      = anch.r;
-
-      // 创建徽标并定位
-      createBadge(svgRoot, id);
-
-      // 点击选择
-      node.addEventListener('click', () => { currentId = id; /* 顺手更新右栏... */ });
-    });
-
-    // 默认选中第一个点
-    if (points[0]) currentId = points[0].getAttribute('data-id');
-
-    // 窗口尺寸变化时，重新计算锚点（防止嵌套 <svg> 的 viewport 变化）
-    window.addEventListener('resize', () => {
-      for (const [id] of store){
-        const node = svgRoot.querySelector(`.point[data-id="${CSS.escape(id)}"]`);
-        const anch = findAnchor(svgRoot, node);
-        const st = store.get(id);
-        st.anchor = { x: anch.x, y: anch.y };
-        st.r      = anch.r;
-        positionBadge(id);
-      }
-    });
-
-    // 初次定位
-    for (const [id] of store) positionBadge(id);
-  }
-
-  // === 示例：把你现有的 loadMap 成功回调里调用 afterSvgLoaded(svg) ===
+  // ====== 加载 SVG & 初始化点位 ======
   async function loadMap(){
-    const wrap = document.getElementById('mapContainer');
-    const res = await fetch('map.svg', { cache: 'no-store' });
-    const svgText = await res.text();
-    wrap.innerHTML = svgText;
-    const svg = wrap.querySelector('svg');
-    await afterSvgLoaded(svg);
+    try{
+      const res = await fetch('map.svg', { cache:'no-store' });
+      if (!res.ok) throw new Error('加载 map.svg 失败');
+      const svgText = await res.text();
+      els.container.innerHTML = svgText;
+
+      const svg = els.container.querySelector('svg');
+      const points = svg.querySelectorAll('.point');
+      if (!points.length){
+        els.container.innerHTML = '<div class="loading">已加载 SVG，但未找到 .point</div>';
+        return;
+      }
+
+      let auto = 0;
+      points.forEach(node => {
+        try{
+          if (!node.getAttribute('data-id')) node.setAttribute('data-id', `p-${++auto}`);
+          const id = node.getAttribute('data-id');
+          const label = node.getAttribute('data-label') || id;
+
+          // 初始化
+          const durationMs = 8*3600*1000;
+          store.set(id, { label, mode:'idle', durationMs, remainingMs:durationMs, endAt:null,
+                          badge:null, anchor:null, r:6 });
+
+          // 计算锚点（稳：基于 getBoundingClientRect → screenToSvg）
+          const anch = getAnchor(svg, node);
+          const st = store.get(id);
+          st.anchor = { x: anch.x, y: anch.y };
+          st.r = anch.r;
+
+          // 徽标
+          createBadge(svg, id);
+          positionBadge(id);
+
+          // 点击切换
+          node.addEventListener('click', () => selectPoint(id));
+        }catch(err){
+          console.error('初始化点位失败：', err);
+        }
+      });
+
+      // 默认选第一个
+      selectPoint(points[0].getAttribute('data-id'));
+
+      // 监听尺寸变化（viewBox 自适应会改变屏幕矩形）
+      window.addEventListener('resize', () => {
+        points.forEach(node => {
+          const id = node.getAttribute('data-id');
+          const anch = getAnchor(svg, node);
+          const st = store.get(id);
+          st.anchor = { x: anch.x, y: anch.y };
+          st.r = anch.r;
+          positionBadge(id);
+        });
+      });
+
+      startTicker();
+    }catch(err){
+      console.error(err);
+      els.container.innerHTML = `<div class="loading">加载失败：${err.message}</div>`;
+    }
   }
 
-  // === 启动（其余开始/暂停/重置逻辑保持你原来的实现，仅需在状态变化后调用 positionBadge(currentId) 并开 tick）===
   loadMap();
-  // 例：开始按钮里最后加：
-  //   positionBadge(currentId); startTicker();
-  // 暂停/重置同理调用 positionBadge(currentId);
-
 })();
 </script>
