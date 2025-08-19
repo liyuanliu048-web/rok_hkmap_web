@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SVG 地图倒计时</title>
+<style>
+  :root { --bg:#0b1020; --card:#11182a; --muted:#94a3b8; --accent:#4f46e5; }
+  html,body{height:100%;margin:0;background:var(--bg);color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,PingFang SC,Noto Sans SC,sans-serif;}
+  header{padding:16px 20px;border-bottom:1px solid #1f2937;background:rgba(0,0,0,.25);backdrop-filter:saturate(1.2) blur(6px);position:sticky;top:0;z-index:10}
+  header h1{margin:0;font-size:18px}
+  main{display:grid;grid-template-columns:1fr;gap:16px;padding:16px;}
+  .map-wrap{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden;min-height:300px;display:flex;align-items:center;justify-content:center;border:1px solid #263047}
+  .loading{color:#9ca3af;font-size:14px}
+  svg{width:100%;height:auto;display:block;background:#0e152b}
+  .hotspot{cursor:pointer;transition:transform .12s ease, opacity .2s ease; fill:#fde047; stroke:#0b1020; stroke-width:2}
+  .hotspot:hover{transform:scale(1.15)}
+  .hotspot-label{font-size:10px; fill:#ffe; pointer-events:none; text-shadow:0 1px 2px #000}
+  /* Modal */
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px}
+  .backdrop.show{display:flex}
+  .modal{width:min(560px, 92vw);background:var(--card);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;border:1px solid #263047}
+  .modal header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:0;border-bottom:1px solid #263047;background:#0f172a}
+  .modal header h2{margin:0;font-size:16px}
+  .modal .content{padding:18px;display:grid;gap:16px}
+  .time{font-variant-numeric:tabular-nums;letter-spacing:1px;font-size:42px;text-align:center}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row > *{flex:1}
+  input[type="number"]{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #334155;background:#0b1222;color:#e5e7eb;outline:none}
+  input[type="number"]:focus{border-color:var(--accent)}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid #334155;background:#131a2e;color:#e5e7eb;cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:transparent}
+  .btn.ghost{background:transparent}
+  .meta{color:var(--muted);font-size:12px;text-align:center}
+  .footer{display:flex;gap:10px;justify-content:flex-end;padding:0 18px 18px}
+  .panel{background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:16px;border:1px solid #263047}
+  .panel h3{margin:0 0 8px 0;font-size:14px;color:#cbd5e1}
+  .hint{color:var(--muted);font-size:13px;line-height:1.6}
+  @media (min-width:900px){ main{grid-template-columns:1.25fr .75fr} }
+</style>
+</head>
+<body>
+  <header><h1>SVG 地图 · 可交互倒计时（外部 map.svg 加载）</h1></header>
+  <main>
+    <div class="map-wrap" id="mapContainer"><div class="loading">正在加载 map.svg …</div></div>
+    <aside class="panel">
+      <h3>使用说明</h3>
+      <div class="hint">
+        • 把点位放在 <code>map.svg</code> 里（示例见下方步骤）。<br/>
+        • 每个点用：<code>&lt;g class="point" data-id="唯一ID" data-label="显示名" data-default-hours="8"&gt;...&lt;/g&gt;</code><br/>
+        • 默认时长优先取 <code>data-default-hours</code>，否则 8 小时。<br/>
+        • 数据保存在本地浏览器（localStorage），刷新不丢。<br/>
+        • 支持深链：URL 使用 <code>#point-点ID</code> 可直达某个点。
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal -->
+  <div class="backdrop" id="backdrop" role="dialog" aria-modal="true" aria-labelledby="title">
+    <div class="modal">
+      <header>
+        <h2 id="title">倒计时</h2>
+        <button class="btn ghost" id="closeBtn" aria-label="关闭">✕</button>
+      </header>
+      <div class="content">
+        <div class="time" id="timeLeft">08:00:00</div>
+        <div class="meta" id="statusMeta">状态：未开始</div>
+        <div class="row">
+          <div><label>小时</label><input type="number" id="hours" min="0" max="240" step="1" value="8"></div>
+          <div><label>分钟</label><input type="number" id="mins"  min="0" max="59" step="1" value="0"></div>
+          <div><label>秒</label><input type="number" id="secs"  min="0" max="59" step="1" value="0"></div>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="startBtn">开始 / 继续</button>
+          <button class="btn" id="pauseBtn">暂停</button>
+          <button class="btn" id="resetBtn">重置</button>
+        </div>
+        <div class="meta"><span>保存于本地浏览器</span></div>
+      </div>
+      <div class="footer">
+        <button class="btn ghost" id="copyLinkBtn">复制深链</button>
+        <button class="btn" id="clearBtn">清除数据</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== 工具 =====
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const fmt = ms => {
+    if (ms < 0) ms = 0;
+    const total = Math.floor(ms/1000);
+    const h = Math.floor(total/3600);
+    const m = Math.floor((total%3600)/60);
+    const s = total%60;
+    const pad = n => String(n).padStart(2,'0');
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  };
+  const NS = 'svg-ctd-v1';
+  const key = id => `${NS}:${location.pathname}:${id}`;
+
+  // ===== 全局状态 =====
+  const state = {
+    currentId: null,
+    timer: null,
+    cache: {},
+  };
+
+  function readPointState(id, fallbackHours){
+    const raw = localStorage.getItem(key(id));
+    if (raw){
+      try { const obj = JSON.parse(raw); state.cache[id]=obj; return obj; } catch {}
+    }
+    const durationMs = (Number(fallbackHours ?? 8)||8)*3600*1000;
+    const init = { mode:'idle', durationMs, remainingMs:durationMs, endAt:null, label:id };
+    state.cache[id] = init;
+    return init;
+  }
+  function writePointState(id, obj){
+    state.cache[id] = obj;
+    localStorage.setItem(key(id), JSON.stringify(obj));
+  }
+
+  // ====== UI 元素 ======
+  const els = {
+    container: $('#mapContainer'),
+    backdrop: $('#backdrop'),
+    title: $('#title'),
+    timeLeft: $('#timeLeft'),
+    statusMeta: $('#statusMeta'),
+    hours: $('#hours'),
+    mins: $('#mins'),
+    secs: $('#secs'),
+    start: $('#startBtn'),
+    pause: $('#pauseBtn'),
+    reset: $('#resetBtn'),
+    close: $('#closeBtn'),
+    clear: $('#clearBtn'),
+    copy: $('#copyLinkBtn'),
+  };
+
+  // ===== 业务逻辑 =====
+  function openForPoint(id, label, defaultHours){
+    state.currentId = id;
+    const st = readPointState(id, defaultHours);
+    els.title.textContent = `${label || id} · 倒计时`;
+    const nowLeft = st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0)
+                  : st.mode === 'paused'  ? st.remainingMs
+                  : st.durationMs;
+    els.timeLeft.textContent = fmt(nowLeft);
+    els.statusMeta.textContent = st.mode === 'running'
+      ? `状态：进行中（预计完成：${new Date(st.endAt).toLocaleString()}）`
+      : st.mode === 'paused' ? '状态：已暂停' : '状态：未开始';
+
+    const hh = Math.floor(nowLeft/3600000);
+    const mm = Math.floor((nowLeft%3600000)/60000);
+    const ss = Math.floor((nowLeft%60000)/1000);
+    els.hours.value = hh; els.mins.value = mm; els.secs.value = ss;
+
+    els.backdrop.classList.add('show');
+    stopTick(); if (st.mode === 'running') startTick();
+
+    const hash = `#point-${encodeURIComponent(id)}`;
+    if (location.hash !== hash) history.replaceState(null,'',hash);
+  }
+  function closeModal(){ stopTick(); els.backdrop.classList.remove('show'); }
+
+  function startTick(){ stopTick(); state.timer = setInterval(tick, 250); }
+  function stopTick(){ if (state.timer){ clearInterval(state.timer); state.timer=null; } }
+  function tick(){
+    const id = state.currentId; if (!id) return;
+    const st = state.cache[id] || readPointState(id);
+    if (st.mode !== 'running' || !st.endAt){ stopTick(); return; }
+    const left = st.endAt - Date.now();
+    if (left <= 0){
+      st.mode='idle'; st.remainingMs=st.durationMs; st.endAt=null; writePointState(id, st);
+      els.timeLeft.textContent = fmt(0);
+      els.statusMeta.textContent = '状态：已完成';
+      stopTick(); return;
+    }
+    els.timeLeft.textContent = fmt(left);
+    els.statusMeta.textContent = `状态：进行中（预计完成：${new Date(st.endAt).toLocaleString()}）`;
+  }
+
+  // 控件事件
+  els.start.addEventListener('click', () => {
+    const id = state.currentId; if (!id) return;
+    const hh = Math.max(0, Number(els.hours.value)||0);
+    const mm = Math.max(0, Math.min(59, Number(els.mins.value)||0));
+    const ss = Math.max(0, Math.min(59, Number(els.secs.value)||0));
+    const durationMs = (hh*3600 + mm*60 + ss) * 1000;
+
+    const st = state.cache[id] || readPointState(id);
+    const baseRemaining = st.mode === 'paused' ? st.remainingMs
+                        : st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0)
+                        : durationMs || st.durationMs;
+    const newRemaining = durationMs > 0 ? durationMs : baseRemaining || (8*3600*1000);
+    st.durationMs = newRemaining; // 当前设定成为新的默认
+    st.mode='running'; st.endAt=Date.now()+newRemaining; st.remainingMs=null;
+    writePointState(id, st);
+    startTick(); tick();
+  });
+  els.pause.addEventListener('click', () => {
+    const id = state.currentId; if (!id) return;
+    const st = state.cache[id] || readPointState(id);
+    if (st.mode === 'running'){
+      st.remainingMs = Math.max(st.endAt - Date.now(), 0);
+      st.mode='paused'; st.endAt=null; writePointState(id, st);
+      els.statusMeta.textContent='状态：已暂停'; els.timeLeft.textContent=fmt(st.remainingMs);
+      stopTick();
+    }
+  });
+  els.reset.addEventListener('click', () => {
+    const id = state.currentId; if (!id) return;
+    const st = state.cache[id] || readPointState(id);
+    st.mode='idle'; st.remainingMs=st.durationMs; st.endAt=null; writePointState(id, st);
+    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始';
+    stopTick();
+  });
+  els.clear.addEventListener('click', () => {
+    const id = state.currentId; if (!id) return;
+    localStorage.removeItem(key(id)); delete state.cache[id];
+    const node = document.querySelector(`.point[data-id="${CSS.escape(id)}"]`);
+    const h = node?.getAttribute('data-default-hours') ?? 8;
+    const st = readPointState(id, h);
+    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始（已清空数据）';
+    stopTick();
+  });
+  els.copy.addEventListener('click', async () => {
+    const id = state.currentId; if (!id) return;
+    const url = new URL(location.href); url.hash = `#point-${id}`;
+    try { await navigator.clipboard.writeText(url.toString()); els.copy.textContent='已复制 ✓'; setTimeout(()=>els.copy.textContent='复制深链',1500); }
+    catch { prompt('复制失败，请手动复制：', url.toString()); }
+  });
+  els.close.addEventListener('click', closeModal);
+  els.backdrop.addEventListener('click', e => { if (e.target === els.backdrop) closeModal(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.currentId){
+      const st = state.cache[state.currentId];
+      if (st?.mode === 'running') tick();
+    }
+  });
+
+  function bindPointsAndGlow(){
+    // 为所有点位绑定点击；运行中的点加微光
+    $$('.point').forEach(g => {
+      const id = g.getAttribute('data-id') || crypto.randomUUID();
+      const label = g.getAttribute('data-label') || id;
+      const defaultHours = g.getAttribute('data-default-hours') ?? 8;
+      const st = readPointState(id, defaultHours);
+      if (st.mode === 'running'){
+        const c = g.querySelector('.hotspot');
+        if (c) c.style.filter = 'drop-shadow(0 0 6px rgba(253,224,71,.6))';
+      }
+      g.addEventListener('click', () => openForPoint(id, label, defaultHours));
+    });
+  }
+
+  function openFromHash(){
+    const m = location.hash.match(/^#point-(.+)$/);
+    if (m){
+      const id = decodeURIComponent(m[1]);
+      const node = document.querySelector(`.point[data-id="${CSS.escape(id)}"]`);
+      if (node){
+        openForPoint(id, node.getAttribute('data-label') || id, node.getAttribute('data-default-hours') ?? 8);
+      }
+    }
+  }
+
+  // ====== 加载 map.svg 并注入 ======
+  async function loadMap(){
+    try {
+      const res = await fetch('map.svg', { cache: 'no-store' });
+      if (!res.ok) throw new Error('无法加载 map.svg');
+      const svgText = await res.text();
+      els.container.innerHTML = svgText; // 内联到 DOM
+      // 现在 .point 已经在页面上了
+      bindPointsAndGlow();
+      openFromHash(); // 如果带有深链，自动打开
+    } catch (err) {
+      els.container.innerHTML = `<div class="loading">加载 map.svg 失败：${err.message}</div>`;
+    }
+  }
+
+  loadMap();
+})();
+</script>
+</body>
+</html>
