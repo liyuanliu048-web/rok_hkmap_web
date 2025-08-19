@@ -127,54 +127,56 @@
   </g>
 
 <g class="point" data-id="A1" data-label="A1 点" data-default-hours="3">
-  <circle class="hotspot" cx="112.06" cy="101.63" r="5"/>
-  <text class="hotspot-label" x="122.06" y="105.63">A1</text>
+  <circle class="hotspot" cx="112.06" cy="101.63" r="10"/>
+  <text class="hotspot-label" x="122.06" y="105.63" fill="black" font-weight="bold">A1</text>
 </g>
 
 <g class="point" data-id="A2" data-label="A2 点" data-default-hours="3">
-  <circle class="hotspot" cx="171.63" cy="176.43" r="5"/>
-  <text class="hotspot-label" x="181.63" y="180.43">A2</text>
+  <circle class="hotspot" cx="171.63" cy="176.43" r="10"/>
+  <text class="hotspot-label" x="181.63" y="180.43" fill="black" font-weight="bold">A2</text>
 </g>
 
 <g class="point" data-id="A3" data-label="A3 点" data-default-hours="3">
-  <circle class="hotspot" cx="87.03" cy="207.47" r="5"/>
-  <text class="hotspot-label" x="97.03" y="211.47">A3</text>
+  <circle class="hotspot" cx="87.03" cy="207.47" r="10"/>
+  <text class="hotspot-label" x="97.03" y="211.47" fill="black" font-weight="bold">A3</text>
 </g>
 
 <g class="point" data-id="A4" data-label="A4 点" data-default-hours="3">
-  <circle class="hotspot" cx="220.31" cy="306.75" r="5"/>
-  <text class="hotspot-label" x="230.31" y="310.75">A4</text>
+  <circle class="hotspot" cx="220.31" cy="306.75" r="10"/>
+  <text class="hotspot-label" x="230.31" y="310.75" fill="black" font-weight="bold">A4</text>
 </g>
 
 <g class="point" data-id="A5" data-label="A5 点" data-default-hours="3">
-  <circle class="hotspot" cx="133.27" cy="342.11" r="5"/>
-  <text class="hotspot-label" x="143.27" y="346.11">A5</text>
+  <circle class="hotspot" cx="133.27" cy="342.11" r="10"/>
+  <text class="hotspot-label" x="143.27" y="346.11" fill="black" font-weight="bold">A5</text>
 </g>
 
 <g class="point" data-id="A6" data-label="A6 点" data-default-hours="3">
-  <circle class="hotspot" cx="133.27" cy="457.72" r="5"/>
-  <text class="hotspot-label" x="143.27" y="461.72">A6</text>
+  <circle class="hotspot" cx="133.27" cy="457.72" r="10"/>
+  <text class="hotspot-label" x="143.27" y="461.72" fill="black" font-weight="bold">A6</text>
 </g>
 
 <g class="point" data-id="A7" data-label="A7 点" data-default-hours="3">
-  <circle class="hotspot" cx="78.87" cy="595.08" r="5"/>
-  <text class="hotspot-label" x="88.87" y="599.08">A7</text>
+  <circle class="hotspot" cx="78.87" cy="595.08" r="10"/>
+  <text class="hotspot-label" x="88.87" y="599.08" fill="black" font-weight="bold">A7</text>
 </g>
 
 <g class="point" data-id="A8" data-label="A8 点" data-default-hours="3">
-  <circle class="hotspot" cx="242.07" cy="589.64" r="5"/>
-  <text class="hotspot-label" x="252.07" y="593.64">A8</text>
+  <circle class="hotspot" cx="242.07" cy="589.64" r="10"/>
+  <text class="hotspot-label" x="252.07" y="593.64" fill="black" font-weight="bold">A8</text>
 </g>
 
 <g class="point" data-id="A9" data-label="A9 点" data-default-hours="3">
-  <circle class="hotspot" cx="87.03" cy="736.52" r="5"/>
-  <text class="hotspot-label" x="97.03" y="740.52">A9</text>
+  <circle class="hotspot" cx="87.03" cy="736.52" r="10"/>
+  <text class="hotspot-label" x="97.03" y="740.52" fill="black" font-weight="bold">A9</text>
 </g>
 
 <g class="point" data-id="A10" data-label="A10 点" data-default-hours="3">
-  <circle class="hotspot" cx="282.87" cy="774.6" r="5"/>
-  <text class="hotspot-label" x="292.87" y="778.6">A10</text>
+  <circle class="hotspot" cx="282.87" cy="774.6" r="10"/>
+  <text class="hotspot-label" x="292.87" y="778.6" fill="black" font-weight="bold">A10</text>
 </g>
+
+
 
   
 </svg>
