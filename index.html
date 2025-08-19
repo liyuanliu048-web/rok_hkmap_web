@@ -49,6 +49,12 @@
 /* 把缩放动画从 .hotspot:hover 改到 .point:hover .hotspot */
 .point:hover .hotspot { transform: scale(1.15); }
 
+
+/* === Mobile 兼容：用透明命中圈命中点击，兼容 iOS Safari === */
+.point { cursor: pointer; }                /* 不再依赖 bounding-box */
+.point .hit { pointer-events: all; }       /* 命中圈承担交互 */
+.hotspot { pointer-events: none; }         /* 视觉元素不吃事件（避免抖动） }
+
 </style>
 </head>
 <body>
@@ -95,6 +101,7 @@
     const pad = n => String(n).padStart(2,'0');
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   };
+  const fmtHM = ms => { if (ms<0) ms=0; const tot=Math.floor(ms/1000); const h=Math.floor(tot/3600); const m=Math.floor((tot%3600)/60); const pad=n=>String(n).padStart(2,'0'); return `${pad(h)}:${pad(m)}`; };
   const NS = 'svg-ctd-v1';
   const key = id => `${NS}:${location.pathname}:${id}`;
 
@@ -155,28 +162,42 @@
     els.hours.value = hh; els.mins.value = mm; els.secs.value = ss;
 
     /* 面板模式：无需弹窗 */
-    stopTick(); if (st.mode === 'running') startTick();
+    stopTick(); updateBadge(id); if (st.mode === 'running') startTick();
 
     const hash = `#point-${encodeURIComponent(id)}`;
     if (location.hash !== hash) history.replaceState(null,'',hash);
   }
   function closeModal(){ /* 已移除弹窗 */ }
 
-  function startTick(){ stopTick(); state.timer = setInterval(tick, 250); }
+  function startTick(){ stopTick(); updateBadge(id); state.timer = setInterval(tick, 250); }
   function stopTick(){ if (state.timer){ clearInterval(state.timer); state.timer=null; } }
   function tick(){
     const id = state.currentId; if (!id) return;
     const st = state.cache[id] || readPointState(id);
-    if (st.mode !== 'running' || !st.endAt){ stopTick(); return; }
+    if (st.mode !== 'running' || !st.endAt){ stopTick(); updateBadge(id); return; }
     const left = st.endAt - Date.now();
     if (left <= 0){
       st.mode='idle'; st.remainingMs=st.durationMs; st.endAt=null; writePointState(id, st);
       els.timeLeft.textContent = fmt(0);
       els.statusMeta.textContent = '状态：已完成';
-      stopTick(); return;
+      stopTick(); updateBadge(id); return;
     }
     els.timeLeft.textContent = fmt(left);
-    els.statusMeta.textContent = `状态：进行中（预计完成：${new Date(st.endAt).toLocaleString()}）`;
+    els.statusMeta.textContent = `状态：进行中（预计完成：${new Date(st.endAt).toLocaleString()}）`; updateBadge(id);
+  }
+
+
+  function updateBadge(id){
+    const node = document.querySelector(`.point[data-id="${CSS.escape(id)}"]`);
+    if (!node) return;
+    const st = state.cache[id] || readPointState(id);
+    const textEl = node.querySelector('.badge text');
+    if (!textEl) return;
+    const ms = st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0)
+              : st.mode === 'paused'  ? st.remainingMs
+              : st.durationMs ? st.durationMs : 0;
+    const show = st.mode === 'idle' ? 0 : ms;
+    textEl.textContent = fmtHM(show);
   }
 
   // 控件事件
@@ -195,7 +216,7 @@
     st.durationMs = newRemaining; // 当前设定成为新的默认
     st.mode='running'; st.endAt=Date.now()+newRemaining; st.remainingMs=null;
     writePointState(id, st);
-    startTick(); tick();
+    startTick(); tick(); updateBadge(id);
   });
   els.pause.addEventListener('click', () => {
     const id = state.currentId; if (!id) return;
@@ -203,16 +224,16 @@
     if (st.mode === 'running'){
       st.remainingMs = Math.max(st.endAt - Date.now(), 0);
       st.mode='paused'; st.endAt=null; writePointState(id, st);
-      els.statusMeta.textContent='状态：已暂停'; els.timeLeft.textContent=fmt(st.remainingMs);
-      stopTick();
+      els.statusMeta.textContent='状态：已暂停'; els.timeLeft.textContent=fmt(st.remainingMs); updateBadge(id);
+      stopTick(); updateBadge(id);
     }
   });
   els.reset.addEventListener('click', () => {
     const id = state.currentId; if (!id) return;
     const st = state.cache[id] || readPointState(id);
     st.mode='idle'; st.remainingMs=st.durationMs; st.endAt=null; writePointState(id, st);
-    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始';
-    stopTick();
+    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始'; updateBadge(id);
+    stopTick(); updateBadge(id);
   });
   els.clear.addEventListener('click', () => {
     const id = state.currentId; if (!id) return;
@@ -220,8 +241,8 @@
     const node = document.querySelector(`.point[data-id="${CSS.escape(id)}"]`);
     const h = node?.getAttribute('data-default-hours') ?? 8;
     const st = readPointState(id, h);
-    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始（已清空数据）';
-    stopTick();
+    els.timeLeft.textContent=fmt(st.durationMs); els.statusMeta.textContent='状态：未开始（已清空数据）'; updateBadge(id);
+    stopTick(); updateBadge(id);
   });
   els.copy.addEventListener('click', async () => {
     const id = state.currentId; if (!id) return;
@@ -248,8 +269,12 @@
       if (st.mode === 'running'){
         const c = g.querySelector('.hotspot');
         if (c) c.style.filter = 'drop-shadow(0 0 6px rgba(253,224,71,.6))';
+      // 初始刷新徽标
+      updateBadge(id);
       }
       g.addEventListener('click', () => openForPoint(id, label, defaultHours));
+      g.addEventListener('pointerup', (e) => { if (e.pointerType==='touch') openForPoint(id, label, defaultHours); });
+      g.addEventListener('touchstart', () => {}, {passive:true});
     });
   }
 
