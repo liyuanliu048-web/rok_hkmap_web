@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SVG 地图 · 极简倒计时（含点位徽标）</title>
+<title>SVG 地图 · 倒计时（徽标锚点修复&放大）</title>
 <style>
   :root { --bg:#0b1020; --card:#11182a; --muted:#94a3b8; --accent:#4f46e5; }
   html,body{height:100%;margin:0;background:var(--bg);color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,PingFang SC,Noto Sans SC,sans-serif;}
@@ -29,15 +29,13 @@
 </style>
 </head>
 <body>
-  <header><h1>SVG 地图 · 极简倒计时（含点位徽标）</h1></header>
+  <header><h1>SVG 地图 · 倒计时（徽标锚点修复&放大）</h1></header>
 
   <main>
-    <!-- 左侧：地图 -->
     <div class="map-wrap" id="mapContainer">
       <div class="loading">正在加载 map.svg …</div>
     </div>
 
-    <!-- 右侧：倒计时面板 -->
     <aside class="panel">
       <h3 id="title">未选择点位</h3>
       <div class="time" id="timeLeft">--:--:--</div>
@@ -59,7 +57,13 @@
 
 <script>
 (() => {
-  // ===== 工具函数 =====
+  // ===== 常量（徽标 2x 放大版规格） =====
+  const BADGE_FONT_SIZE = 18;    // 文本字号
+  const BADGE_HEIGHT    = 28;    // 背景高度
+  const BADGE_PADDING_X = 10;    // 左右内边距
+  const BADGE_OFFSET_Y  = 18;    // 锚点下方偏移
+
+  // ===== 工具 =====
   const $ = s => document.querySelector(s);
   const fmtHMS = (ms) => {
     if (ms < 0) ms = 0;
@@ -70,18 +74,20 @@
     const pad2 = n => String(n).padStart(2,'0');
     return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
   };
-  const fmtHM = (ms) => {
+  const fmtHMLabel = (ms) => {
     if (ms < 0) ms = 0;
     const t = Math.floor(ms / 1000);
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);
-    const pad2 = n => String(n).padStart(2,'0');
-    return `${h}:${pad2(m)}`; // 小徽标：小时不截断，分钟两位
+    const hh = h > 99 ? String(h) : String(h).padStart(2,'0');
+    const mm = String(m).padStart(2,'0');
+    return `${hh} ${mm}`;
   };
 
-  // ===== 状态管理（内存） =====
-  const store = new Map(); // id -> { label, mode, durationMs, remainingMs, endAt, badgeRefs }
+  // ===== 状态 =====
+  const store = new Map(); // id -> { label, mode, durationMs, remainingMs, endAt, badge: {g,rect,text}, anchor:{x,y} }
   let currentId = null;
+  let ticker = null;
 
   // ===== 右侧元素 =====
   const els = {
@@ -97,92 +103,7 @@
     reset:      $('#resetBtn'),
   };
 
-  const ensureState = (id, label) => {
-    if (!store.has(id)) {
-      const durationMs = 8 * 3600 * 1000;
-      store.set(id, {
-        label: label || id,
-        mode: 'idle',
-        durationMs,
-        remainingMs: durationMs,
-        endAt: null,
-        badgeRefs: null, // {group, rect, text}
-      });
-    }
-    return store.get(id);
-  };
-
-  // ===== 徽标：创建 + 自适应宽度 + 显隐 =====
-  const ensureBadge = (gPoint, id) => {
-    let g = gPoint.querySelector(':scope > g.badge');
-    if (!g) {
-      const svgNS = 'http://www.w3.org/2000/svg';
-      g = document.createElementNS(svgNS, 'g');
-      g.setAttribute('class', 'badge');
-      g.setAttribute('transform', 'translate(0,12)'); // 在点位下方 12px
-
-      const rect = document.createElementNS(svgNS, 'rect');
-      rect.setAttribute('x', '-18'); rect.setAttribute('y', '0');
-      rect.setAttribute('width', '36'); rect.setAttribute('height', '14');
-      rect.setAttribute('rx', '3'); rect.setAttribute('ry', '3');
-      rect.setAttribute('fill', '#ffffff');
-      rect.setAttribute('stroke', '#000000');
-      rect.setAttribute('stroke-width', '1');
-
-      const text = document.createElementNS(svgNS, 'text');
-      text.setAttribute('x', '0'); text.setAttribute('y', '10');
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('font-size', '9');
-      text.setAttribute('font-family','ui-monospace, SFMono-Regular, Menlo, Consolas, monospace');
-      text.setAttribute('fill', '#000000');
-      text.textContent = '--:--';
-
-      g.appendChild(rect); g.appendChild(text);
-      gPoint.appendChild(g);
-      // 默认隐藏（idle 不显示）
-      g.style.display = 'none';
-
-      const st = store.get(id);
-      st.badgeRefs = { group: g, rect, text };
-    } else {
-      const st = store.get(id);
-      if (!st.badgeRefs) {
-        const rect = g.querySelector('rect');
-        const text = g.querySelector('text');
-        st.badgeRefs = { group: g, rect, text };
-      }
-    }
-  };
-
-  const updateBadge = (id) => {
-    const st = store.get(id);
-    if (!st || !st.badgeRefs) return;
-    const { group, rect, text } = st.badgeRefs;
-
-    let show = false, ms = 0;
-    if (st.mode === 'running') { show = true; ms = Math.max(0, st.endAt - Date.now()); }
-    else if (st.mode === 'paused') { show = true; ms = Math.max(0, st.remainingMs || 0); }
-
-    if (!show) { group.style.display = 'none'; return; }
-
-    const label = fmtHM(ms);
-    text.textContent = label;
-
-    // 动态测宽，更新矩形宽度与居中
-    // 先强制显示测量，再还原显示状态
-    const prevDisplay = group.style.display;
-    group.style.display = '';
-    const w = Math.ceil(text.getBBox().width) + 10; // 左右 5px 内边距
-    rect.setAttribute('x', String(-w / 2));
-    rect.setAttribute('width', String(w));
-    group.style.display = ''; // 保持显示
-  };
-
-  const updateAllBadges = () => {
-    for (const [id] of store) updateBadge(id);
-  };
-
-  // ===== 右侧面板同步 =====
+  // ===== 面板 =====
   const updatePanel = (st) => {
     const nowLeft =
       st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0) :
@@ -201,46 +122,90 @@
     const ss = Math.floor((nowLeft % 60000) / 1000);
     els.h.value = hh; els.m.value = mm; els.s.value = ss;
   };
-
   const selectPoint = (id) => {
     currentId = id;
-    const st = store.get(id);
-    updatePanel(st);
-    updateBadge(id);
+    updatePanel(store.get(id));
   };
 
-  // ===== 计时主循环（全局轻量 ticker） =====
-  let ticker = null;
+  // ===== 徽标（根图层渲染 + 绝对定位） =====
+  const makeBadge = (svg, id, anchor) => {
+    const ns = 'http://www.w3.org/2000/svg';
+    // 确保根图层存在
+    let layer = svg.querySelector('#badge-layer');
+    if (!layer) {
+      layer = document.createElementNS(ns, 'g');
+      layer.setAttribute('id','badge-layer');
+      layer.setAttribute('pointer-events','none'); // 不截获鼠标
+      svg.appendChild(layer);
+    }
+    // 创建徽标
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('class','badge');
+    g.setAttribute('transform', `translate(${anchor.x}, ${anchor.y + BADGE_OFFSET_Y})`);
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x','-20'); rect.setAttribute('y','0');
+    rect.setAttribute('width','40'); rect.setAttribute('height', String(BADGE_HEIGHT));
+    rect.setAttribute('rx','4'); rect.setAttribute('ry','4');
+    rect.setAttribute('fill','#ffffff'); rect.setAttribute('stroke','#000000'); rect.setAttribute('stroke-width','1.5');
+
+    const text = document.createElementNS(ns, 'text');
+    text.setAttribute('x','0'); text.setAttribute('y', String(Math.round(BADGE_HEIGHT*0.72))); // 约略基线
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('font-size', String(BADGE_FONT_SIZE));
+    text.setAttribute('font-family','ui-monospace, SFMono-Regular, Menlo, Consolas, monospace');
+    text.setAttribute('fill','#000000');
+    text.textContent = '00 00';
+
+    g.appendChild(rect); g.appendChild(text);
+    layer.appendChild(g);
+
+    store.get(id).badge = { g, rect, text };
+    store.get(id).anchor = anchor;
+    updateBadgeText(id); // 初次排版
+  };
+
+  const updateBadgeText = (id) => {
+    const st = store.get(id);
+    if (!st?.badge) return;
+    const { rect, text } = st.badge;
+
+    let ms = 0;
+    if (st.mode === 'running') ms = Math.max(0, st.endAt - Date.now());
+    else if (st.mode === 'paused') ms = Math.max(0, st.remainingMs || 0);
+    else ms = 0; // idle -> 00 00
+
+    const label = fmtHMLabel(ms);
+    text.textContent = label;
+
+    // 计算文本宽度并自适应矩形
+    // 需保证元素可见才能测量
+    const w = Math.ceil(text.getBBox().width) + BADGE_PADDING_X*2;
+    rect.setAttribute('x', String(-w/2));
+    rect.setAttribute('width', String(w));
+  };
+
+  // ===== 计时刷新 =====
   const startTicker = () => {
     if (ticker) return;
     ticker = setInterval(() => {
       const now = Date.now();
-      let needPanelRefresh = false;
-
+      let needPanel = false;
       for (const [id, st] of store) {
-        if (st.mode !== 'running') continue;
-        const left = st.endAt - now;
-        if (left <= 0) {
-          // 收尾：归位 idle，隐藏徽标
-          st.mode = 'idle';
-          st.remainingMs = st.durationMs;
-          st.endAt = null;
-          updateBadge(id);
-          if (id === currentId) needPanelRefresh = true;
-        } else {
-          // 正常刷新徽标
-          updateBadge(id);
-          if (id === currentId) needPanelRefresh = true;
+        if (st.mode === 'running') {
+          const left = st.endAt - now;
+          if (left <= 0) {
+            st.mode = 'idle';
+            st.remainingMs = st.durationMs;
+            st.endAt = null;
+          }
+          updateBadgeText(id);
+          if (id === currentId) needPanel = true;
         }
       }
+      if (needPanel && currentId) updatePanel(store.get(currentId));
 
-      if (needPanelRefresh && currentId) updatePanel(store.get(currentId));
+      // 若无运行中的计时，仍然每 2s 温和刷新一次（保持暂停/闲置布局稳定）
     }, 500);
-  };
-  const stopTickerIfIdle = () => {
-    // 如果没有任何 running，就停表（节能）
-    for (const [, st] of store) { if (st.mode === 'running') return; }
-    if (ticker) { clearInterval(ticker); ticker = null; }
   };
 
   // ===== 右侧操作 =====
@@ -255,27 +220,22 @@
     if (!currentId) return;
     const st = store.get(currentId);
     const ms = inputMs();
-
     if (ms > 0) {
-      // 显式设定一个新的时长并启动
       st.durationMs = ms;
       st.mode = 'running';
       st.endAt = Date.now() + ms;
       st.remainingMs = null;
     } else if (st.mode === 'paused') {
-      // 继续
       const left = Math.max(0, st.remainingMs || 0);
       st.mode = 'running';
       st.endAt = Date.now() + left;
       st.remainingMs = null;
     } else {
-      // idle 且未输入新时长 → 用默认 durationMs 启动
       st.mode = 'running';
       st.endAt = Date.now() + st.durationMs;
     }
-
     updatePanel(st);
-    updateBadge(currentId);
+    updateBadgeText(currentId);
     startTicker();
   });
 
@@ -287,8 +247,7 @@
       st.mode = 'paused';
       st.endAt = null;
       updatePanel(st);
-      updateBadge(currentId);
-      stopTickerIfIdle();
+      updateBadgeText(currentId);
     }
   });
 
@@ -299,11 +258,10 @@
     st.remainingMs = st.durationMs;
     st.endAt = null;
     updatePanel(st);
-    updateBadge(currentId); // 会隐藏
-    stopTickerIfIdle();
+    updateBadgeText(currentId); // 变为 00 00
   });
 
-  // ===== 加载 map.svg 并绑定点位 =====
+  // ===== 加载 SVG & 绑定点位 =====
   const loadMap = async () => {
     try {
       const res = await fetch('map.svg', { cache: 'no-store' });
@@ -311,30 +269,44 @@
       const svgText = await res.text();
       els.container.innerHTML = svgText;
 
+      const svg = els.container.querySelector('svg');
       const points = els.container.querySelectorAll('.point');
       if (!points.length) {
         els.container.innerHTML = '<div class="loading">已加载 SVG，但未找到 .point 点位</div>';
         return;
       }
 
+      // 初始化每个点位状态 + 徽标
       let autoId = 0;
       points.forEach(g => {
         if (!g.getAttribute('data-id')) g.setAttribute('data-id', `p-${++autoId}`);
-        const id = g.getAttribute('data-id');
+        const id    = g.getAttribute('data-id');
         const label = g.getAttribute('data-label') || id;
 
-        ensureState(id, label);
-        ensureBadge(g, id);
+        // 初始状态
+        const durationMs = 8 * 3600 * 1000;
+        store.set(id, { label, mode:'idle', durationMs, remainingMs:durationMs, endAt:null, badge:null, anchor:null });
 
+        // 计算锚点（将 point 的几何中心变换到 SVG 根坐标）
+        const bbox = g.getBBox();
+        const cx = bbox.x + bbox.width/2;
+        const cy = bbox.y + bbox.height/2;
+        const pt = svg.createSVGPoint();
+        pt.x = cx; pt.y = cy;
+        const m = g.getCTM();
+        const rootPt = m ? pt.matrixTransform(m) : pt; // 若无变换，直接用
+        makeBadge(svg, id, { x: rootPt.x, y: rootPt.y });
+
+        // 点击选择
         g.addEventListener('click', () => selectPoint(id));
       });
 
-      // 默认选中第一个点位
-      const first = points[0];
-      selectPoint(first.getAttribute('data-id'));
+      // 默认选中第一个
+      selectPoint(points[0].getAttribute('data-id'));
 
-      // 初次刷新徽标（大多数是 hidden，但做一次统一测量/布局）
-      updateAllBadges();
+      // 初次把所有徽标排版好（idle -> "00 00"）
+      for (const [id] of store) updateBadgeText(id);
+
     } catch (e) {
       els.container.innerHTML = `<div class="loading">加载 map.svg 失败：${e.message}</div>`;
     }
