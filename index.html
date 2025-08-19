@@ -262,16 +262,64 @@
   function bindPointsAndGlow(){
     // 为所有点位绑定点击；运行中的点加微光
     $$('.point').forEach(g => {
-      const id = g.getAttribute('data-id') || crypto.randomUUID();
+      
+      // === 确保命中圈和倒计时徽标（白底黑字） ===
+      let hotspot = g.querySelector('.hotspot');
+      if (!hotspot) {
+        hotspot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        hotspot.setAttribute('class','hotspot');
+        hotspot.setAttribute('r','6');
+        hotspot.setAttribute('fill','#fde047');
+        hotspot.setAttribute('stroke','#0b1020');
+        hotspot.setAttribute('stroke-width','2');
+        g.appendChild(hotspot);
+      }
+      // 命中圈（触控/点击命中区域）
+      let hit = g.querySelector('.hit');
+      if (!hit){
+        hit = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        hit.setAttribute('class','hit');
+        const r = Number(hotspot.getAttribute('r')) || 6;
+        const hitR = Math.max(r + 8, 14);
+        hit.setAttribute('r', String(hitR));
+        hit.setAttribute('fill','transparent');
+        hit.setAttribute('stroke','none');
+        g.insertBefore(hit, g.firstChild);
+      }
+      // 倒计时徽标
+      let badge = g.querySelector('.badge');
+      if (!badge){
+        badge = document.createElementNS('http://www.w3.org/2000/svg','g');
+        badge.setAttribute('class','badge');
+        // 框
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x','-17'); rect.setAttribute('y','10');
+        rect.setAttribute('width','34'); rect.setAttribute('height','14');
+        rect.setAttribute('rx','3'); rect.setAttribute('ry','3');
+        rect.setAttribute('fill','#ffffff'); rect.setAttribute('stroke','#000000'); rect.setAttribute('stroke-width','1');
+        // 文本
+        const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+        txt.setAttribute('x','0'); txt.setAttribute('y','12'); 
+        txt.setAttribute('text-anchor','middle'); 
+        txt.setAttribute('font-size','9'); 
+        txt.setAttribute('font-family','ui-monospace, SFMono-Regular, Menlo, Consolas, monospace');
+        txt.setAttribute('fill','#000000'); 
+        txt.textContent = '00:00';
+        // 垂直居中到矩形内部（y + 10 + 7 ≈ 中线）
+        txt.setAttribute('dy','7');
+        badge.appendChild(rect); badge.appendChild(txt);
+        g.appendChild(badge);
+      }
+const id = g.getAttribute('data-id') || crypto.randomUUID();
       const label = g.getAttribute('data-label') || id;
       const defaultHours = g.getAttribute('data-default-hours') ?? 8;
       const st = readPointState(id, defaultHours);
       if (st.mode === 'running'){
         const c = g.querySelector('.hotspot');
         if (c) c.style.filter = 'drop-shadow(0 0 6px rgba(253,224,71,.6))';
+      }
       // 初始刷新徽标
       updateBadge(id);
-      }
       g.addEventListener('click', () => openForPoint(id, label, defaultHours));
       g.addEventListener('pointerup', (e) => { if (e.pointerType==='touch') openForPoint(id, label, defaultHours); });
       g.addEventListener('touchstart', () => {}, {passive:true});
