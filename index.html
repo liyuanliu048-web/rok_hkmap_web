@@ -3,33 +3,43 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SVG 地图 · 倒计时（无徽标 · 总控制盘）</title>
+<title>ROK MAP</title>
 <style>
   :root { --bg:#0b1020; --card:#11182a; --muted:#94a3b8; --accent:#4f46e5; }
   html,body{height:100%;margin:0;background:var(--bg);color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,Roboto,PingFang SC,Noto Sans SC,sans-serif;}
   header{padding:14px 16px;border-bottom:1px solid #1f2937;background:#0b1020;position:sticky;top:0;z-index:10}
   header h1{margin:0;font-size:16px}
-  main{display:grid;grid-template-columns:1fr 340px;gap:16px;padding:16px}
+  main{display:grid;grid-template-columns:1fr 360px;gap:16px;padding:16px}
   .map-wrap{background:#0e152b;border-radius:14px;min-height:360px;display:flex;align-items:center;justify-content:center;border:1px solid #263047;overflow:hidden}
   .panel{background:var(--card);border-radius:14px;border:1px solid #263047;padding:16px;display:grid;gap:12px;height:fit-content}
   .panel h3{margin:0 0 6px 0;font-size:14px;color:#cbd5e1}
   .time{font-variant-numeric:tabular-nums;letter-spacing:1px;font-size:40px;text-align:center}
   .meta{color:var(--muted);font-size:12px;text-align:center}
-  .row{display:flex;gap:8px;flex-wrap:wrap}
-  .row > *{flex:1}
-  input[type="number"]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0b1222;color:#e5e7eb;outline:none}
+
+  /* 紧凑输入：更小的框框 */
+  .row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .field label{display:block;margin:0 0 4px 2px;font-size:12px;color:var(--muted)}
+  input[type="number"]{
+    width:100%;padding:8px 10px;border-radius:10px;border:1px solid #334155;
+    background:#0b1222;color:#e5e7eb;outline:none;font-size:14px;text-align:center
+  }
   input[type="number"]:focus{border-color:var(--accent)}
   .btn{padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#131a2e;color:#e5e7eb;cursor:pointer}
   .btn.primary{background:var(--accent);border-color:transparent}
   .loading{color:#9ca3af;font-size:14px}
+
   svg{width:100%;height:auto;display:block}
   .point{cursor:pointer}
   .point:hover{opacity:.9}
-  /* 总控制盘 */
+
+  /* 总控制盘：两列，无内部滚动条 */
   .dash{border-top:1px solid #263047;margin-top:8px;padding-top:12px}
   .dash h3{margin-top:4px}
-  .list{display:grid;gap:8px;max-height:420px;overflow:auto}
-  .item{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;padding:10px 12px;border:1px solid #334155;border-radius:10px;background:#0b1222;cursor:pointer}
+  .list{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:8px}
+  .item{
+    display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;
+    padding:10px 12px;border:1px solid #334155;border-radius:10px;background:#0b1222;cursor:pointer
+  }
   .item .left{display:flex;align-items:center;gap:8px;min-width:0}
   .item .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .item .time-mini{font-variant-numeric:tabular-nums;letter-spacing:1px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
@@ -38,11 +48,13 @@
   .item.paused  .dot{background:#f59e0b}
   .item.idle    .dot{background:#64748b}
   .item.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-  @media (max-width:900px){ main{grid-template-columns:1fr;} .list{max-height:none}}
+
+  @media (max-width:980px){ main{grid-template-columns:1fr;} }
+  @media (max-width:520px){ .list{grid-template-columns:1fr;} } /* 小屏退回单列 */
 </style>
 </head>
 <body>
-  <header><h1>SVG 地图 · 倒计时（无徽标 · 总控制盘）</h1></header>
+  <header><h1>SVG 地图 · 倒计时（无徽标 · 双列总控）</h1></header>
 
   <main>
     <div class="map-wrap" id="mapContainer">
@@ -50,35 +62,35 @@
     </div>
 
     <aside class="panel">
-      <!-- 上半部：保持不变 -->
+      <!-- 上半：保持结构，框框更紧凑 -->
       <h3 id="title">未选择点位</h3>
       <div class="time" id="timeLeft">--:--:--</div>
       <div class="meta" id="statusMeta">状态：未开始</div>
 
       <div class="row">
-        <div><label>小时</label><input type="number" id="hours" min="0" max="240" value="8"></div>
-        <div><label>分钟</label><input type="number" id="mins"  min="0" max="59"  value="0"></div>
-        <div><label>秒</label><input type="number" id="secs"  min="0" max="59"  value="0"></div>
+        <div class="field"><label>小时</label><input type="number" id="hours" min="0" max="240" value="8"></div>
+        <div class="field"><label>分钟</label><input type="number" id="mins"  min="0" max="59"  value="0"></div>
+        <div class="field"><label>秒</label><input type="number" id="secs"  min="0" max="59"  value="0"></div>
       </div>
 
-      <div class="row">
+      <div class="row" style="grid-template-columns:repeat(3,1fr)">
         <button class="btn primary" id="startBtn">开始 / 继续</button>
         <button class="btn" id="pauseBtn">暂停</button>
         <button class="btn" id="resetBtn">重置</button>
       </div>
 
-      <!-- 下半部：总控制盘 -->
+      <!-- 下半：总控制盘（两列） -->
       <div class="dash">
         <h3>总控制盘</h3>
-        <div class="list" id="allList">
-          <!-- JS 动态填充每个点的行 -->
-        </div>
+        <div class="list" id="allList"></div>
       </div>
     </aside>
   </main>
 
 <script>
 (() => {
+  const DEFAULT_MS = 8 * 3600 * 1000;
+
   // ===== 工具 =====
   const $ = s => document.querySelector(s);
   const fmtHMS = (ms) => {
@@ -100,8 +112,8 @@
     return `${hh} ${mm}`;
   };
 
-  // ===== 状态（新增 li 引用）=====
-  const store = new Map(); // id -> { label, mode, durationMs, remainingMs, endAt, li:{root,time,name}, ... }
+  // ===== 状态 =====
+  const store = new Map(); // id -> { label, mode, durationMs, remainingMs, endAt, li:{root,time,name} }
   let currentId = null;
   let panelTicker = null;
 
@@ -121,7 +133,7 @@
   };
 
   // ===== 本地持久化 =====
-  const STORAGE_KEY = 'svg-map-timers-v1';
+  const STORAGE_KEY = 'svg-map-timers-v2';
 
   function saveAll() {
     const plain = {};
@@ -151,6 +163,11 @@
   }
 
   // ===== 面板 =====
+  const isEditingInputs = () => {
+    const a = document.activeElement;
+    return a === els.h || a === els.m || a === els.s;
+  };
+
   const updatePanel = (st) => {
     const nowLeft =
       st.mode === 'running' ? Math.max(st.endAt - Date.now(), 0) :
@@ -167,8 +184,13 @@
     const hh = Math.floor(nowLeft / 3600000);
     const mm = Math.floor((nowLeft % 3600000) / 60000);
     const ss = Math.floor((nowLeft % 60000) / 1000);
-    els.h.value = hh; els.m.value = mm; els.s.value = ss;
+
+    // 修复1：正在编辑时不回填，避免“跳回 8 小时”
+    if (!isEditingInputs()) {
+      els.h.value = hh; els.m.value = mm; els.s.value = ss;
+    }
   };
+
   const selectPoint = (id) => {
     if (!store.has(id)) return;
     if (currentId && store.get(currentId)?.li) store.get(currentId).li.root.classList.remove('selected');
@@ -214,7 +236,7 @@
     let ms = 0;
     if (st.mode === 'running') ms = Math.max(0, st.endAt - Date.now());
     else if (st.mode === 'paused') ms = Math.max(0, st.remainingMs || 0);
-    else ms = st.durationMs; // idle 显示初始时长
+    else ms = st.durationMs; // idle 显示默认时长
 
     st.li.time.textContent = fmtHMLabel(ms);
 
@@ -231,7 +253,7 @@
     }, 1000);
   };
 
-  // ===== 右侧操作 =====
+  // ===== 输入框交互（修复2）=====
   const inputMs = () => {
     const hh = Math.max(0, Number(els.h.value) || 0);
     const mm = Math.max(0, Math.min(59, Number(els.m.value) || 0));
@@ -239,6 +261,34 @@
     return (hh * 3600 + mm * 60 + ss) * 1000;
   };
 
+  [els.h, els.m, els.s].forEach(inp => {
+    // 实时预览上方大时间（未开始/暂停）
+    inp.addEventListener('input', () => {
+      if (!currentId) return;
+      const st = store.get(currentId);
+      if (st.mode !== 'running') {
+        els.timeLeft.textContent = fmtHMS(inputMs());
+      }
+    });
+
+    // 结束编辑：把输入写入默认时长（未开始/暂停）
+    inp.addEventListener('change', () => {
+      if (!currentId) return;
+      const st = store.get(currentId);
+      if (st.mode === 'running') return;
+      const ms = inputMs();
+      st.durationMs = ms;
+      st.remainingMs = ms;
+      updatePanel(st);
+      updateListItem(currentId);
+      saveAll();
+    });
+
+    // 回车快速开始
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') els.start.click(); });
+  });
+
+  // ===== 右侧按钮 =====
   els.start.addEventListener('click', () => {
     if (!currentId) return;
     const st = store.get(currentId);
@@ -276,19 +326,22 @@
     }
   });
 
+  // 重置：停止并还原为 8 小时（输入框也回到 8:00:00）
   els.reset.addEventListener('click', () => {
     if (!currentId) return;
     const st = store.get(currentId);
     st.mode = 'idle';
-    st.remainingMs = st.durationMs;
+    st.durationMs = DEFAULT_MS;
+    st.remainingMs = DEFAULT_MS;
     st.endAt = null;
+
+    // 直接设置输入框，确保立即可见
+    els.h.value = 8; els.m.value = 0; els.s.value = 0;
+
     updatePanel(st);
     updateListItem(currentId);
     saveAll();
   });
-
-  // 回车快速开始
-  [els.h, els.m, els.s].forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') els.start.click(); }));
 
   // ===== 加载 SVG & 绑定点位（无徽标）=====
   const loadMap = async () => {
@@ -310,13 +363,12 @@
         const id    = g.getAttribute('data-id');
         const label = g.getAttribute('data-label') || id;
 
-        const durationMs = 8 * 3600 * 1000;
-        store.set(id, { label, mode:'idle', durationMs, remainingMs:durationMs, endAt:null, li:null });
+        store.set(id, { label, mode:'idle', durationMs:DEFAULT_MS, remainingMs:DEFAULT_MS, endAt:null, li:null });
 
         // 点击地图点位也可选择
         g.addEventListener('click', () => selectPoint(id));
 
-        // 为总控制盘创建一行
+        // 为总控创建一行
         const li = makeListItem(id, label);
         store.get(id).li = li;
         updateListItem(id);
