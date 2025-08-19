@@ -286,5 +286,44 @@
   <text class="hotspot-label" x="1228.31" y="1048.7" fill="black" font-weight="bold">D8</text>
 </g>
 
+<g class="point" data-id="E1" data-label="E1 点" data-default-hours="3">
+  <circle class="hotspot" cx="634.43" cy="1021.85" r="10"/>
+  <text class="hotspot-label" x="644.43" y="1025.85" fill="black" font-weight="bold">E1</text>
+</g>
+
+<g class="point" data-id="E2" data-label="E2 点" data-default-hours="3">
+  <circle class="hotspot" cx="659.02" cy="1141.53" r="10"/>
+  <text class="hotspot-label" x="669.02" y="1145.53" fill="black" font-weight="bold">E2</text>
+</g>
+
+<g class="point" data-id="E3" data-label="E3 点" data-default-hours="3">
+  <circle class="hotspot" cx="660.25" cy="1282.51" r="10"/>
+  <text class="hotspot-label" x="670.25" y="1286.51" fill="black" font-weight="bold">E3</text>
+</g>
+
+<g class="point" data-id="E4" data-label="E4 点" data-default-hours="3">
+  <circle class="hotspot" cx="806.56" cy="1220.22" r="10"/>
+  <text class="hotspot-label" x="816.56" y="1224.22" fill="black" font-weight="bold">E4</text>
+</g>
+
+<g class="point" data-id="E5" data-label="E5 点" data-default-hours="3">
+  <circle class="hotspot" cx="954.1" cy="1162.84" r="10"/>
+  <text class="hotspot-label" x="964.1" y="1166.84" fill="black" font-weight="bold">E5</text>
+</g>
+
+<g class="point" data-id="E6" data-label="E6 点" data-default-hours="3">
+  <circle class="hotspot" cx="931.15" cy="1295.63" r="10"/>
+  <text class="hotspot-label" x="941.15" y="1299.63" fill="black" font-weight="bold">E6</text>
+</g>
+
+<g class="point" data-id="E7" data-label="E7 点" data-default-hours="3">
+  <circle class="hotspot" cx="1134.43" cy="1128.41" r="10"/>
+  <text class="hotspot-label" x="1144.43" y="1132.41" fill="black" font-weight="bold">E7</text>
+</g>
+
+<g class="point" data-id="E8" data-label="E8 点" data-default-hours="3">
+  <circle class="hotspot" cx="1316.4" cy="1197.26" r="10"/>
+  <text class="hotspot-label" x="1326.4" y="1201.26" fill="black" font-weight="bold">E8</text>
+</g>
   
 </svg>
