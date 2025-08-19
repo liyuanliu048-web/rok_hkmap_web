@@ -176,6 +176,35 @@
   <text class="hotspot-label" x="292.87" y="778.6" fill="black" font-weight="bold">A10</text>
 </g>
 
+<g class="point" data-id="B1" data-label="B1 点" data-default-hours="3">
+  <circle class="hotspot" cx="204.82" cy="42.65" r="10"/>
+  <text class="hotspot-label" x="214.82" y="46.65" fill="black" font-weight="bold">B1</text>
+</g>
+
+<g class="point" data-id="B2" data-label="B2 点" data-default-hours="3">
+  <circle class="hotspot" cx="359.87" cy="140.57" r="10"/>
+  <text class="hotspot-label" x="369.87" y="144.57" fill="black" font-weight="bold">B2</text>
+</g>
+
+<g class="point" data-id="B3" data-label="B3 点" data-default-hours="3">
+  <circle class="hotspot" cx="437.39" cy="304.86" r="10"/>
+  <text class="hotspot-label" x="447.39" y="308.86" fill="black" font-weight="bold">B3</text>
+</g>
+
+<g class="point" data-id="B4" data-label="B4 点" data-default-hours="3">
+  <circle class="hotspot" cx="505.39" cy="107.65" r="10"/>
+  <text class="hotspot-label" x="515.39" y="111.65" fill="black" font-weight="bold">B4</text>
+</g>
+
+<g class="point" data-id="B5" data-label="B5 点" data-default-hours="3">
+  <circle class="hotspot" cx="552.99" cy="225.98" r="10"/>
+  <text class="hotspot-label" x="562.99" y="229.98" fill="black" font-weight="bold">B5</text>
+</g>
+
+<g class="point" data-id="B6" data-label="B6 点" data-default-hours="3">
+  <circle class="hotspot" cx="678.11" cy="54.61" r="10"/>
+  <text class="hotspot-label" x="688.11" y="58.61" fill="black" font-weight="bold">B6</text>
+</g>
 
 
   
